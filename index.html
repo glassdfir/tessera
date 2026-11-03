@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tessera · DFIR Case Notebook</title>
+  <meta name="description" content="Keep a DFIR case in one place: findings, timeline, indicators, scope, evidence and decisions, then export the report. Runs in your browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141a24'/%3E%3Crect x='6' y='6' width='9' height='9' rx='1.5' fill='%234c8dff'/%3E%3Crect x='17' y='6' width='9' height='5' rx='1.5' fill='%233ecf8e'/%3E%3Crect x='17' y='13' width='9' height='13' rx='1.5' fill='%23f2a93b'/%3E%3Crect x='6' y='17' width='9' height='9' rx='1.5' fill='%23ef5b5b'/%3E%3C/svg%3E">
+  <style>
+:root {
+  --bg: #0e131b; --panel: #141a24; --panel-2: #1a2230; --raise: #212b3b;
+  --line: #2a3546; --line-2: #364357; --text: #e6ebf2; --muted: #8b97a8;
+  --accent: #4c8dff; --accent-ink: #fff; --danger: #ef5b5b; --ok: #3ecf8e; --warn: #f2a93b; --info: #a78bfa;
+  --row-hover: rgba(255, 255, 255, 0.03); --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="light"] {
+  --bg: #eef1f5; --panel: #fff; --panel-2: #f6f8fb; --raise: #eef2f7;
+  --line: #dbe1ea; --line-2: #c8d0dc; --text: #17202c; --muted: #5f6b7c; --accent: #2563eb;
+  --ok: #15803d; --warn: #b45309; --danger: #dc2626; --info: #7c3aed;
+  --row-hover: rgba(15, 30, 60, 0.03); --shadow: 0 6px 24px rgba(20, 30, 50, 0.12);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); display: flex; flex-direction: column; overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 11.5px; }
+.mono { font-family: var(--mono); font-size: 12px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Top bar */
+#topbar { min-height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; color: inherit; }
+.logo { width: 22px; height: 22px; flex: none; }
+.brand-name { font-size: 15px; }
+.suite-link { color: var(--muted); text-decoration: none; font-size: 12px; }
+.suite-link:hover { color: var(--text); }
+.case-title { flex: 1; min-width: 160px; max-width: 420px; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px 8px; font-weight: 600; font-size: 14px; }
+.case-title:hover { border-color: var(--line); }
+.case-title:focus { outline: none; border-color: var(--accent); background: var(--panel-2); }
+.actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.saved { font-size: 11.5px; color: var(--muted); }
+.btn { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; line-height: 1.3; text-decoration: none; display: inline-block; }
+.btn:hover { border-color: var(--line-2); background: var(--panel-2); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: 2px 8px; font-size: 12px; }
+.btn.icon { width: 30px; padding: 5px 0; text-align: center; }
+.menu { position: relative; }
+.menu-list { display: none; position: absolute; right: 0; top: calc(100% + 4px); z-index: 50; min-width: 250px; max-height: 70vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: var(--shadow); }
+.menu.open .menu-list { display: block; }
+.menu-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+.menu-list button:hover { background: var(--raise); }
+.menu-list button.on { color: var(--accent); font-weight: 600; }
+.menu-label { padding: 6px 10px 2px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+
+/* Layout */
+#layout { flex: 1; display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
+#nav { background: var(--panel); border-right: 1px solid var(--line); padding: 10px 8px; overflow: auto; }
+#nav button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; background: none; border: 0; border-radius: 6px; padding: 7px 10px; cursor: pointer; text-align: left; color: var(--muted); font-weight: 500; }
+#nav button:hover { background: var(--raise); color: var(--text); }
+#nav button.on { background: var(--raise); color: var(--text); box-shadow: inset 3px 0 var(--accent); }
+#nav .count { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+#nav .nav-foot { margin-top: 14px; padding: 8px 10px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); }
+#main { overflow: auto; padding: 18px 22px 40px; }
+.section { max-width: 1100px; }
+.section h1 { font-size: 18px; margin: 0 0 4px; }
+.section > p.lead { margin: 0 0 14px; color: var(--muted); max-width: 70ch; }
+
+/* Forms and lists */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.addrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.addrow > * { min-width: 0; }
+.field { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.field:focus { outline: none; border-color: var(--accent); }
+textarea.field { width: 100%; resize: vertical; min-height: 64px; line-height: 1.45; }
+.grow { flex: 1 1 200px; }
+.w-time { width: 190px; }
+.w-sm { width: 130px; }
+.w-md { width: 180px; }
+.tablewrap { overflow-x: auto; border-radius: 8px; }
+table.items { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+table.items th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; padding: 7px 8px; background: var(--panel-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.items td { padding: 3px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.items tr:last-child td { border-bottom: 0; }
+table.items tr:hover td { background: var(--row-hover); }
+table.items .cell { width: 100%; background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 4px 6px; min-width: 0; }
+table.items .cell:hover { border-color: var(--line); }
+table.items .cell:focus { outline: none; border-color: var(--accent); background: var(--panel-2); }
+table.items textarea.cell { resize: vertical; min-height: 30px; line-height: 1.4; display: block; }
+table.items select.cell { padding: 3px 4px; }
+table.items .del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 6px 6px; }
+table.items .del:hover { color: var(--danger); }
+.notes-btn { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; margin: 3px 0; font-size: 11.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.notes-btn:hover { border-color: var(--line-2); color: var(--text); }
+.notes-btn.has { color: var(--accent); border-color: var(--accent); }
+.notes-btn.on { background: var(--raise); color: var(--text); }
+table.items tr.thread-row td { background: var(--panel-2); padding: 8px 12px 10px 40px; }
+table.items tr.thread-row:hover td { background: var(--panel-2); }
+.thread { border-left: 2px solid var(--line-2); padding-left: 12px; }
+.notes { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.notes li { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.note-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.note-head .del { margin-left: auto; padding: 0 4px; }
+.note-text { margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
+.note-form { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+.note-form textarea { min-height: 32px; resize: vertical; }
+.report ul.rnotes { margin: 4px 0 0; padding-left: 14px; font-size: 12px; color: #3d4757; }
+.report .rn-meta { color: #5f6b7c; font-family: var(--mono); font-size: 11px; }
+.empty { padding: 18px; text-align: center; color: var(--muted); background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; }
+.bad { border-color: var(--danger) !important; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }
+.toolbar .grow { flex: 1; }
+.chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.st-suspected { color: var(--warn); } .st-confirmed { color: var(--danger); } .st-contained { color: var(--info); }
+.st-cleaned { color: var(--ok); } .st-unaffected { color: var(--muted); }
+.cf-confirmed { color: var(--danger); } .cf-likely { color: var(--warn); } .cf-possible { color: var(--muted); }
+
+/* Overview */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; }
+.stat:hover { border-color: var(--line-2); }
+.stat b { display: block; font-size: 22px; font-weight: 700; }
+.stat span { color: var(--muted); font-size: 12px; }
+.meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.meta-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.scope-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.scope-col h3 { font-size: 12px; margin: 0 0 6px; }
+.scope-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.scope-col li { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.latest { list-style: none; margin: 0; padding: 0; }
+.latest li { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.latest li:last-child { border-bottom: 0; }
+.latest .t { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* Report */
+.report { background: #fff; color: #17202c; border-radius: 8px; padding: 32px 38px; max-width: 900px; box-shadow: var(--shadow); font-size: 13.5px; line-height: 1.55; }
+.report h1 { font-size: 24px; margin: 0 0 4px; }
+.report h2 { font-size: 16px; margin: 26px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #dbe1ea; }
+.report h3 { font-size: 14px; margin: 16px 0 4px; }
+.report table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+.report th, .report td { text-align: left; border-bottom: 1px solid #e3e8ef; padding: 4px 6px; vertical-align: top; }
+.report th { background: #f3f5f8; }
+.report code { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.report .rmeta { color: #5f6b7c; margin: 0 0 12px; }
+.report .foot { margin-top: 28px; color: #5f6b7c; font-size: 11.5px; }
+
+/* Toast and modal */
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 6px; z-index: 90; max-width: 90vw; box-shadow: var(--shadow); }
+#toast.err { background: var(--danger); color: #fff; }
+.modal { position: fixed; inset: 0; background: rgba(5, 8, 12, 0.6); display: flex; align-items: center; justify-content: center; z-index: 80; padding: 16px; }
+.modal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; width: min(640px, 100%); max-height: 90vh; overflow: auto; box-shadow: var(--shadow); }
+.modal-card h3 { margin: 0 0 6px; font-size: 16px; }
+.modal-card pre { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 50vh; overflow: auto; }
+.row-end { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  #layout { grid-template-columns: minmax(0, 1fr); }
+  #nav { display: flex; overflow-x: auto; padding: 6px; border-right: 0; border-bottom: 1px solid var(--line); }
+  #nav button { width: auto; flex: none; }
+  #nav button.on { box-shadow: inset 0 -2px var(--accent); }
+  #nav .nav-foot { display: none; }
+  #main { padding: 14px 12px 40px; overflow: visible; }
+  .w-time, .w-sm, .w-md { width: 100%; }
+  table.items { min-width: 680px; }
+  table.items tr.thread-row td { padding: 8px 6px 10px; }
+  .thread { position: sticky; left: 8px; width: calc(100vw - 58px); }
+  .report { padding: 20px 16px; }
+  .report table { display: block; overflow-x: auto; }
+}
+@media print {
+  body { background: #fff; overflow: visible; height: auto; display: block; }
+  #topbar, #nav, .no-print, #toast { display: none !important; }
+  #layout { display: block; }
+  #main { padding: 0; overflow: visible; }
+  .report { box-shadow: none; padding: 0; max-width: none; }
+}
+  </style>
+</head>
+<body>
+  <header id="topbar">
+    <a class="brand" href="/tessera/" title="Tessera">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#141a24"/><rect x="6" y="6" width="9" height="9" rx="1.5" fill="#4c8dff"/><rect x="17" y="6" width="9" height="5" rx="1.5" fill="#3ecf8e"/><rect x="17" y="13" width="9" height="13" rx="1.5" fill="#f2a93b"/><rect x="6" y="17" width="9" height="9" rx="1.5" fill="#ef5b5b"/></svg>
+      <span class="brand-name">Tessera</span>
+    </a>
+    <a class="suite-link" href="/tools/">jon.glass / Tools</a>
+    <label for="caseTitle" class="sr">Case title</label>
+    <input id="caseTitle" class="case-title" type="text" autocomplete="off" placeholder="Case title">
+    <div class="actions">
+      <span class="saved" id="saved"></span>
+      <div class="menu" id="casesMenu">
+        <button class="btn" type="button" data-menu>Cases ▾</button>
+        <div class="menu-list" id="casesList"></div>
+      </div>
+      <div class="menu" id="exportMenu">
+        <button class="btn" type="button" data-menu>Export ▾</button>
+        <div class="menu-list">
+          <div class="menu-label">Report</div>
+          <button type="button" data-export="report-md">Report (Markdown)</button>
+          <button type="button" data-export="report-print">Report (print or save as PDF)</button>
+          <div class="menu-label">Indicators</div>
+          <button type="button" data-export="ioc-csv">Indicators (CSV)</button>
+          <button type="button" data-export="ioc-defanged">Indicators (defanged text)</button>
+          <button type="button" data-export="ioc-yara">Indicators as a YARA rule</button>
+          <div class="menu-label">Send to</div>
+          <button type="button" data-export="recap">Timeline → Recap</button>
+          <div class="menu-label">Case file</div>
+          <button type="button" data-export="case">Case file (.tessera.json)</button>
+        </div>
+      </div>
+      <button class="btn icon" type="button" id="themeBtn" title="Switch light and dark" aria-label="Switch light and dark"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" style="vertical-align:-2px"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
+    </div>
+  </header>
+
+  <div id="layout">
+    <nav id="nav" aria-label="Case sections"></nav>
+    <main id="main"></main>
+  </div>
+
+  <input id="importFile" type="file" accept=".json,.tessera.json,application/json" class="sr" tabindex="-1">
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="modal" id="modal" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle" id="modalCard"></div></div>
+
+  <script src="/assets/suite/handoff.js"></script>
+  <script>
+(function () {
+  'use strict';
+
+  /* ======================= Helpers ======================= */
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  function toast(msg, err) {
+    const t = $('toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), err ? 6000 : 3200);
+  }
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* storage blocked */ } },
+  };
+
+  // Times are kept as UTC ISO strings. Accepts ISO, "YYYY-MM-DD HH:MM[:SS[.fff]]" (read as UTC) and Recap/EvtxECmd forms.
+  function parseTime(s) {
+    s = String(s || '').trim();
+    if (!s) return null;
+    let m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2})(?:[.,](\d+))?)?\s*(Z|UTC|[+-]\d{2}:?\d{2})?$/i.exec(s);
+    if (m) {
+      const frac = m[4] ? '.' + (m[4] + '00').slice(0, 3) : '';
+      let tz = m[5] ? m[5].toUpperCase() : 'Z';
+      if (tz === 'UTC') tz = 'Z';
+      if (/^[+-]\d{4}$/.test(tz)) tz = tz.slice(0, 3) + ':' + tz.slice(3);
+      const d = new Date(`${m[1]}T${m[2]}:${m[3] || '00'}${frac}${tz}`);
+      return isNaN(d) ? null : d;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { const d = new Date(s + 'T00:00:00Z'); return isNaN(d) ? null : d; }
+    return null;
+  }
+  const fmtTime = (iso) => { const d = parseTime(iso); return d ? d.toISOString().replace('T', ' ').replace(/\.000Z$/, 'Z').replace(/(\.\d{3})Z$/, '$1Z') : (iso || ''); };
+  const normTime = (s) => { const d = parseTime(s); return d ? d.toISOString().replace(/\.000Z$/, 'Z') : String(s || '').trim(); };
+
+  // RFC 4180-ish CSV
+  function parseCSV(text) {
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    const body = rows.filter((r) => r.length > 1 || r[0] !== '').filter((r) => !/^#/.test(r[0]));
+    if (!body.length) return [];
+    const head = body[0].map((h) => h.trim());
+    return body.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] === undefined ? '' : r[i]])));
+  }
+  const csvCell = (v) => { v = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const toCSV = (cols, rows) => [cols.join(','), ...rows.map((r) => cols.map((c) => csvCell(r[c])).join(','))].join('\n') + '\n';
+
+  /* ======================= Indicators: extract, classify, defang ======================= */
+  // File extensions that look like top-level domains in text ("update.exe"): these become file names
+  const FILE_EXT = new Set('exe dll sys bat cmd ps1 psm1 vbs js jse hta lnk scr msi zip rar 7z gz tar iso img vhd vhdx txt log csv json xml conf cfg ini dat bin tmp pdf doc docx xls xlsx xlsm ppt pptx rtf one py sh jar apk evtx pf reg db sqlite dmp php asp aspx jsp html htm png jpg gif'.split(' '));
+  const TLD_OK = /^(com|net|org|io|co|info|biz|xyz|top|ru|cn|de|uk|us|eu|me|tv|cc|gov|edu|mil|int|app|dev|cloud|online|site|club|live|shop|store|tech|ai|ly|to|in|fr|nl|br|jp|kr|au|ca|ch|se|no|pl|it|es|ir|kp|su|onion|example|test|local|lan|corp|internal|invalid|[a-z]{2})$/i;
+  const IOC_TYPES = ['ip', 'domain', 'url', 'sha256', 'sha1', 'md5', 'email', 'file', 'path', 'registry', 'pipe', 'mutex', 'account', 'other'];
+  const IOC_LABEL = { ip: 'IP address', domain: 'Domain', url: 'URL', sha256: 'SHA-256', sha1: 'SHA-1', md5: 'MD5', email: 'Email', file: 'File name', path: 'Path', registry: 'Registry key', pipe: 'Named pipe', mutex: 'Mutex', account: 'Account', other: 'Other' };
+  const refang = (s) => String(s).replace(/hxxp/gi, 'http').replace(/\[\.\]|\(\.\)|\{\.\}|\[dot\]/gi, '.').replace(/\[:\]/g, ':').replace(/\[@\]|\[at\]/gi, '@');
+  // Bracket the last dot of the host part, so nothing is clickable: hxxp://evil[.]example/a.dat, 203.0.113[.]66, a[@]b[.]example
+  const lastDot = (h) => h.replace(/\.(?=[^.]*$)/, '[.]');
+  const defang = (v, type) => {
+    v = String(v);
+    if (type === 'url') { const m = /^(https?)(:\/\/)([^/?#]+)(.*)$/i.exec(v); return m ? m[1].replace(/^http/i, 'hxxp') + m[2] + lastDot(m[3]) + m[4] : v; }
+    if (type === 'email') { const i = v.lastIndexOf('@'); return i < 0 ? v : v.slice(0, i) + '[@]' + lastDot(v.slice(i + 1)); }
+    return type === 'ip' || type === 'domain' ? lastDot(v) : v;
+  };
+  const validIp = (s) => s.split('.').every((o) => /^\d{1,3}$/.test(o) && +o <= 255 && !(o.length > 1 && o[0] === '0'));
+  function classify(v) {
+    v = refang(v).trim();
+    if (/^[a-f0-9]{64}$/i.test(v)) return 'sha256';
+    if (/^[a-f0-9]{40}$/i.test(v)) return 'sha1';
+    if (/^[a-f0-9]{32}$/i.test(v)) return 'md5';
+    if (/^https?:\/\//i.test(v)) return 'url';
+    if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(v) && validIp(v.split(':')[0])) return 'ip';
+    if (/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v)) return 'email';
+    if (/^\\\\\.\\pipe\\/i.test(v)) return 'pipe';
+    if (/^(Global|Local)\\/i.test(v)) return 'mutex';
+    if (/^(HKLM|HKCU|HKU|HKCR|HKEY_[A-Z_]+)\\/i.test(v)) return 'registry';
+    if (/^[a-z]:\\|^\\\\|^%[a-z]+%\\/i.test(v)) return 'path';
+    if (/^[a-z0-9_-]+\\[a-z0-9_.$-]+$/i.test(v)) return 'account';
+    const ext = (v.match(/\.([a-z0-9]{1,6})$/i) || [])[1];
+    if (ext && FILE_EXT.has(ext.toLowerCase())) return 'file';
+    if (/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(v) && TLD_OK.test(v.split('.').pop())) return 'domain';
+    return 'other';
+  }
+  // Pull indicators out of free text: alerts, reports, logs. Defanged forms are read back.
+  function extractIocs(text) {
+    const t = refang(text), out = [], seen = new Set();
+    const add = (type, v) => { v = v.replace(/[).,;:'"\]>]+$/, ''); const k = type + '|' + v.toLowerCase(); if (v && !seen.has(k)) { seen.add(k); out.push({ type, value: v }); } };
+    const urls = t.match(/\bhttps?:\/\/[^\s"'<>]+/gi) || [];
+    urls.forEach((u) => add('url', u));
+    const noUrls = t.replace(/\bhttps?:\/\/[^\s"'<>]+/gi, ' ');
+    (noUrls.match(/\b[a-f0-9]{64}\b/gi) || []).forEach((h) => add('sha256', h.toLowerCase()));
+    const noLong = noUrls.replace(/\b[a-f0-9]{64}\b/gi, ' ');
+    (noLong.match(/\b[a-f0-9]{40}\b/gi) || []).forEach((h) => add('sha1', h.toLowerCase()));
+    (noLong.replace(/\b[a-f0-9]{40}\b/gi, ' ').match(/\b[a-f0-9]{32}\b/gi) || []).forEach((h) => add('md5', h.toLowerCase()));
+    (noUrls.match(/\b[\w.+-]+@[\w-]+(\.[\w-]+)+\b/g) || []).forEach((e) => add('email', e));
+    const noMail = noUrls.replace(/\b[\w.+-]+@[\w-]+(\.[\w-]+)+\b/g, ' ');
+    (noMail.match(/\\\\\.\\pipe\\[\w.-]+/gi) || []).forEach((p) => add('pipe', p));
+    (noMail.match(/\b(?:Global|Local)\\[\w.-]+/g) || []).forEach((m) => add('mutex', m));
+    (noMail.match(/\b(?:HKLM|HKCU|HKU|HKCR|HKEY_[A-Z_]+)\\[^\s"'<>,;]+/g) || []).forEach((r) => add('registry', r));
+    (noMail.match(/(?:\b[a-z]:\\|%[a-z]+%\\)[^\s"'<>,;|]+/gi) || []).forEach((p) => add('path', p));
+    (noMail.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g) || []).filter(validIp).forEach((ip) => add('ip', ip));
+    const noIp = noMail.replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, ' ').replace(/(?:\b[a-z]:\\|%[a-z]+%\\)[^\s"'<>,;|]+/gi, ' ');
+    (noIp.match(/\b(?:[a-z0-9-]+\.)+[a-z0-9]{2,}\b/gi) || []).forEach((d) => {
+      const type = classify(d);
+      if (type === 'domain' || type === 'file') add(type, d);
+    });
+    return out;
+  }
+
+  /* ======================= Case model and storage ======================= */
+  const STATUS = ['open', 'contained', 'eradicated', 'recovered', 'closed'];
+  const SEVERITY = ['low', 'medium', 'high', 'critical'];
+  const CONFIDENCE = ['confirmed', 'likely', 'possible'];
+  const SCOPE_KIND = ['host', 'account', 'data', 'other'];
+  const SCOPE_STATUS = ['suspected', 'confirmed', 'contained', 'cleaned', 'unaffected'];
+  const ACTION_KIND = ['decision', 'action', 'note'];
+  const TACTICS = ['', 'Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence', 'Privilege Escalation', 'Defense Evasion',
+    'Credential Access', 'Discovery', 'Lateral Movement', 'Collection', 'Command and Control', 'Exfiltration', 'Impact'];
+  const LISTS = ['findings', 'events', 'indicators', 'scope', 'evidence', 'actions'];
+
+  function newCase(title) {
+    return { format: 'tessera', v: 1, id: rid(), title: title || 'Untitled case', status: 'open', severity: 'medium', lead: '',
+      opened: nowIso(), updated: nowIso(), summary: '', findings: [], events: [], indicators: [], scope: [], evidence: [], actions: [] };
+  }
+  // Accept a case file from anywhere: fill gaps, drop what is not ours
+  function cleanCase(o) {
+    if (!o || o.format !== 'tessera') throw new Error('That is not a Tessera case file');
+    const c = newCase(String(o.title || 'Imported case'));
+    ['id', 'status', 'severity', 'lead', 'opened', 'updated', 'summary'].forEach((k) => { if (o[k] != null) c[k] = String(o[k]); });
+    LISTS.forEach((k) => { c[k] = Array.isArray(o[k]) ? o[k].filter((x) => x && typeof x === 'object').map((x) => ({ ...x, id: String(x.id || rid()) })) : []; });
+    c.actions.forEach((a) => { a.notes = Array.isArray(a.notes) ? a.notes.filter((n) => n && typeof n === 'object' && n.text).map((n) => ({ id: String(n.id || rid()), time: String(n.time || ''), who: String(n.who || ''), text: String(n.text) })) : []; });
+    return c;
+  }
+
+  const S = { c: null, section: 'overview', storageOk: true, open: new Set() }; // open: ids of items whose note thread is showing
+  const INDEX = 'tessera.index', ACTIVE = 'tessera.active', key = (id) => 'tessera.case.' + id;
+  const caseIndex = () => store.get(INDEX, []);
+  function saveNow() {
+    if (!S.c) return;
+    S.c.updated = nowIso();
+    const ok = store.set(key(S.c.id), S.c);
+    const idx = caseIndex().filter((x) => x.id !== S.c.id);
+    idx.unshift({ id: S.c.id, title: S.c.title, updated: S.c.updated, status: S.c.status });
+    S.storageOk = ok && store.set(INDEX, idx) && store.set(ACTIVE, S.c.id);
+    $('saved').textContent = S.storageOk ? 'Saved in this browser' : 'Not saved: browser storage is off. Export the case file.';
+    $('saved').style.color = S.storageOk ? '' : 'var(--danger)';
+  }
+  let saveT = 0;
+  const changed = () => { clearTimeout(saveT); saveT = setTimeout(saveNow, 300); renderNav(); };
+  function openCase(id) {
+    const c = store.get(key(id), null);
+    if (!c) return false;
+    try { S.c = cleanCase(c); } catch (e) { return false; }
+    store.set(ACTIVE, S.c.id);
+    render();
+    return true;
+  }
+  function createCase(title) { S.c = newCase(title); saveNow(); render(); }
+  function deleteCase() {
+    if (!S.c || !confirm(`Delete "${S.c.title}" from this browser? Export the case file first if you want to keep it.`)) return;
+    store.del(key(S.c.id));
+    store.set(INDEX, caseIndex().filter((x) => x.id !== S.c.id));
+    const next = caseIndex()[0];
+    if (!next || !openCase(next.id)) createCase();
+    toast('Case deleted');
+  }
+  // The blank case made on a first visit: replaced, not kept, when a real case arrives
+  const isBlank = (c) => c && c.title === 'Untitled case' && !c.summary && !c.lead && LISTS.every((k) => !c[k].length);
+  function dropIfBlank() {
+    if (!isBlank(S.c)) return;
+    store.del(key(S.c.id));
+    store.set(INDEX, caseIndex().filter((x) => x.id !== S.c.id));
+  }
+  // Add a case from a file or a link. A case you already have stays as your copy.
+  function importCase(obj, { quiet } = {}) {
+    const c = cleanCase(obj);
+    if (S.c && S.c.id !== c.id) dropIfBlank();
+    if (store.get(key(c.id), null)) { openCase(c.id); if (!quiet) toast('You already have this case, so your copy is open. Delete it first to load the file fresh.'); return; }
+    S.c = c; saveNow(); render();
+    if (!quiet) toast(`Opened "${c.title}"`);
+  }
+
+  /* ======================= Sections ======================= */
+  const SECTIONS = [
+    ['overview', 'Overview'], ['findings', 'Findings'], ['events', 'Timeline'], ['indicators', 'Indicators'],
+    ['scope', 'Scope'], ['evidence', 'Evidence'], ['actions', 'Actions & decisions'], ['report', 'Report'],
+  ];
+  function renderNav() {
+    $('nav').innerHTML = SECTIONS.map(([id, name]) =>
+      `<button type="button" data-sec="${id}" class="${S.section === id ? 'on' : ''}"${S.section === id ? ' aria-current="page"' : ''}>${name}` +
+      `${LISTS.includes(id) ? `<span class="count">${S.c[id].length}</span>` : ''}</button>`).join('') +
+      '<div class="nav-foot">Everything stays in this browser. Export the case file to keep or share it.</div>';
+  }
+  const opt = (list, v, labels) => list.map((x) => `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(labels ? labels[x] || x : x || '—')}</option>`).join('');
+  const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+
+  // A table whose cells edit the item in place. cols: [key, label, kind, extra]. With thread, each item
+  // gets a notes button and, when open, a row under it holding its notes.
+  function itemTable(list, cols, { thread } = {}) {
+    if (!S.c[list].length) return `<div class="empty">Nothing here yet.</div>`;
+    const cell = (it, [k, , kind, extra]) => {
+      const v = it[k] == null ? '' : it[k];
+      if (kind === 'select') return `<select class="cell" data-k="${k}">${opt(extra.list, v, extra.labels)}</select>`;
+      if (kind === 'area') return `<textarea class="cell" data-k="${k}" rows="1">${esc(v)}</textarea>`;
+      if (kind === 'time') return `<input class="cell mono${v && !parseTime(v) ? ' bad' : ''}" data-k="${k}" value="${esc(fmtTime(v))}" placeholder="YYYY-MM-DD HH:MM:SSZ">`;
+      return `<input class="cell${kind === 'mono' ? ' mono' : ''}" data-k="${k}" value="${esc(v)}">`;
+    };
+    const span = cols.length + (thread ? 2 : 1);
+    const notesBtn = (it) => { const n = (it.notes || []).length, on = S.open.has(it.id);
+      return `<td><button class="notes-btn${n ? ' has' : ''}${on ? ' on' : ''}" type="button" data-thread aria-expanded="${on}" title="${on ? 'Hide' : 'Show'} notes">${n ? n + ' note' + (n === 1 ? '' : 's') : 'Notes'}</button></td>`; };
+    return `<div class="tablewrap"><table class="items" data-list="${list}"><thead><tr>${cols.map((c) => `<th${c[3] && c[3].width ? ` style="width:${c[3].width}"` : ''}>${c[1]}</th>`).join('')}${thread ? '<th style="width:90px"></th>' : ''}<th style="width:30px"></th></tr></thead><tbody>` +
+      S.c[list].map((it) => `<tr data-id="${esc(it.id)}">${cols.map((c) => `<td>${cell(it, c)}</td>`).join('')}${thread ? notesBtn(it) : ''}<td><button class="del" type="button" data-del title="Remove" aria-label="Remove">×</button></td></tr>` +
+        (thread && S.open.has(it.id) ? `<tr class="thread-row" data-for="${esc(it.id)}"><td colspan="${span}">${threadHtml(it)}</td></tr>` : '')).join('') +
+      '</tbody></table></div>';
+  }
+  // An item's notes, oldest first, and a box to add one. Your name is remembered in this browser.
+  function threadHtml(it) {
+    const notes = [...(it.notes || [])].sort((a, b) => (parseTime(a.time) || 0) - (parseTime(b.time) || 0));
+    return `<div class="thread">${notes.length ? `<ol class="notes">${notes.map((n) => `<li data-note="${esc(n.id)}"><div class="note-head"><span class="mono muted">${esc(fmtTime(n.time))}</span>${n.who ? ` <b>${esc(n.who)}</b>` : ''}` +
+        `<button class="del" type="button" data-note-del title="Delete note" aria-label="Delete note">×</button></div><div class="note-text">${esc(n.text).replace(/\n/g, '<br>')}</div></li>`).join('')}</ol>` : '<p class="muted small">No notes yet.</p>'}
+      <form class="note-form" data-note-for="${esc(it.id)}"><input class="field w-sm" name="who" placeholder="Your name" value="${esc(store.get('tessera.who', ''))}" aria-label="Your name">
+        <textarea class="field grow" name="text" rows="1" placeholder="Add a note: an objection, a follow-up, what changed… (Ctrl+Enter posts)" aria-label="Note" required></textarea>
+        <button class="btn small primary" type="submit">Post</button></form></div>`;
+  }
+  const sortEvents = () => S.c.events.sort((a, b) => ((parseTime(a.time) || 0) - (parseTime(b.time) || 0)));
+
+  const VIEWS = {
+    overview() {
+      const c = S.c, n = (k) => c[k].length;
+      const byStatus = SCOPE_STATUS.map((st) => [st, c.scope.filter((x) => x.status === st)]);
+      const latest = [...c.events].sort((a, b) => (parseTime(b.time) || 0) - (parseTime(a.time) || 0)).slice(0, 6);
+      return `<div class="section"><h1>Overview</h1><p class="lead">What the case is, where it stands, and what is affected.</p>
+        <div class="card"><div class="meta-grid">
+          <label>Status<select class="field" data-case="status">${opt(STATUS, c.status, Object.fromEntries(STATUS.map((x) => [x, cap(x)])))}</select></label>
+          <label>Severity<select class="field" data-case="severity">${opt(SEVERITY, c.severity, Object.fromEntries(SEVERITY.map((x) => [x, cap(x)])))}</select></label>
+          <label>Lead<input class="field" data-case="lead" value="${esc(c.lead)}" placeholder="Who runs this case"></label>
+          <label>Opened (UTC)<input class="field mono" data-case="opened" value="${esc(fmtTime(c.opened))}"></label>
+        </div>
+        <label for="summary" class="small muted">Summary: what happened, in a few sentences</label>
+        <textarea id="summary" class="field" data-case="summary" rows="4" placeholder="A finance user opened a fake invoice…">${esc(c.summary)}</textarea></div>
+        <div class="stats">${[['findings', 'Findings'], ['events', 'Timeline events'], ['indicators', 'Indicators'], ['scope', 'In scope'], ['evidence', 'Evidence items'], ['actions', 'Actions & decisions']]
+          .map(([k, l]) => `<button type="button" class="stat" data-sec="${k}"><b>${n(k)}</b><span>${l}</span></button>`).join('')}</div>
+        <div class="card"><h2>Scope</h2>${c.scope.length ? `<div class="scope-board">${byStatus.map(([st, items]) =>
+          `<div class="scope-col"><h3><span class="chip st-${st}">${cap(st)}</span> <span class="muted">${items.length}</span></h3><ul>${items.map((x) => `<li title="${esc(x.note || '')}">${esc(cap(x.kind))}: ${esc(x.name)}</li>`).join('')}</ul></div>`).join('')}</div>`
+          : '<p class="muted">No hosts, accounts or data in scope yet. Add them under Scope.</p>'}</div>
+        <div class="card"><h2>Latest events</h2>${latest.length ? `<ul class="latest">${latest.map((e) => `<li><span class="t">${esc(fmtTime(e.time))}</span><span>${esc(e.text)}${e.host ? ` <span class="muted">· ${esc(e.host)}</span>` : ''}</span></li>`).join('')}</ul>` : '<p class="muted">No events yet. Add them under Timeline, or send them from Recap or Hexes.</p>'}</div>
+      </div>`;
+    },
+    findings() {
+      return `<div class="section"><h1>Findings</h1><p class="lead">What you have established, and how sure you are. One finding per fact; say what evidence shows it.</p>
+        <form class="card" data-add="findings"><div class="addrow">
+          <input class="field grow" name="title" placeholder="Finding, e.g. LSASS was dumped on WKS-01" required>
+          <select class="field w-md" name="tactic" aria-label="ATT&CK tactic">${opt(TACTICS, '', { '': 'Tactic (optional)' })}</select>
+          <select class="field w-sm" name="confidence" aria-label="Confidence">${opt(CONFIDENCE, 'likely', Object.fromEntries(CONFIDENCE.map((x) => [x, cap(x)])))}</select>
+          <input class="field w-time mono" name="time" placeholder="When (UTC, optional)">
+        </div><div class="addrow" style="margin-top:8px">
+          <textarea class="field grow" name="detail" rows="2" placeholder="Detail and the evidence behind it, e.g. rundll32 comsvcs.dll MiniDump at 14:05:12 (Sysmon 1, EDR alert)"></textarea>
+          <button class="btn primary" type="submit">Add finding</button></div></form>
+        ${itemTable('findings', [['title', 'Finding', 'text', { width: '26%' }], ['detail', 'Detail and evidence', 'area'], ['tactic', 'Tactic', 'select', { list: TACTICS, labels: { '': '—' }, width: '150px' }],
+          ['confidence', 'Confidence', 'select', { list: CONFIDENCE, labels: Object.fromEntries(CONFIDENCE.map((x) => [x, cap(x)])), width: '110px' }], ['time', 'When (UTC)', 'time', { width: '170px' }]])}</div>`;
+    },
+    events() {
+      sortEvents();
+      return `<div class="section"><h1>Timeline</h1><p class="lead">The key events, in UTC. Keep the full timeline in Recap; keep the moments that tell the story here. Recap's tagged events and Hexes' bookmarks can be sent straight here.</p>
+        <form class="card" data-add="events"><div class="addrow">
+          <input class="field w-time mono" name="time" placeholder="YYYY-MM-DD HH:MM:SSZ" required>
+          <input class="field grow" name="text" placeholder="What happened" required>
+          <input class="field w-sm" name="host" placeholder="Host">
+          <input class="field w-sm" name="source" placeholder="Source, e.g. Sysmon">
+          <button class="btn primary" type="submit">Add event</button></div></form>
+        <div class="toolbar no-print"><span class="grow muted small">${S.c.events.filter((e) => e.time && !parseTime(e.time)).length ? 'Times outlined in red could not be read. Use YYYY-MM-DD HH:MM:SS, in UTC.' : ''}</span>
+          <button class="btn small" type="button" data-export="recap">Open in Recap</button></div>
+        ${itemTable('events', [['time', 'Time (UTC)', 'time', { width: '190px' }], ['text', 'Event', 'area'], ['host', 'Host', 'text', { width: '130px' }], ['source', 'Source', 'text', { width: '130px' }]])}</div>`;
+    },
+    indicators() {
+      return `<div class="section"><h1>Indicators</h1><p class="lead">Addresses, domains, hashes, file names and other things to hunt for. Paste any text and Tessera pulls the indicators out; defanged ones (hxxp, [.]) are read back.</p>
+        <div class="card"><h2>Paste to extract</h2>
+          <textarea class="field" id="iocPaste" rows="4" placeholder="Paste an alert, a report, log lines…"></textarea>
+          <div class="row-end"><input class="field grow" id="iocNote" placeholder="Note for all of them, e.g. from the EDR alert"><button class="btn primary" type="button" id="iocExtract">Extract indicators</button></div></div>
+        <form class="card" data-add="indicators"><h2>Add one</h2><div class="addrow">
+          <input class="field grow mono" name="value" placeholder="Indicator" required>
+          <select class="field w-md" name="type" aria-label="Type"><option value="">Type: work it out</option>${opt(IOC_TYPES, null, IOC_LABEL)}</select>
+          <input class="field grow" name="note" placeholder="Note">
+          <button class="btn primary" type="submit">Add</button></div></form>
+        ${itemTable('indicators', [['type', 'Type', 'select', { list: IOC_TYPES, labels: IOC_LABEL, width: '140px' }], ['value', 'Indicator', 'mono', { width: '38%' }], ['note', 'Note', 'text'], ['source', 'Source', 'text', { width: '120px' }]])}</div>`;
+    },
+    scope() {
+      return `<div class="section"><h1>Scope</h1><p class="lead">Every host, account and dataset the incident touches, and where each one stands.</p>
+        <form class="card" data-add="scope"><div class="addrow">
+          <select class="field w-sm" name="kind" aria-label="Kind">${opt(SCOPE_KIND, 'host', Object.fromEntries(SCOPE_KIND.map((x) => [x, cap(x)])))}</select>
+          <input class="field grow" name="name" placeholder="Name, e.g. FILE-01 or CORP\\svc_backup" required>
+          <select class="field w-sm" name="status" aria-label="Status">${opt(SCOPE_STATUS, 'suspected', Object.fromEntries(SCOPE_STATUS.map((x) => [x, cap(x)])))}</select>
+          <input class="field grow" name="note" placeholder="Note">
+          <button class="btn primary" type="submit">Add</button></div></form>
+        ${itemTable('scope', [['kind', 'Kind', 'select', { list: SCOPE_KIND, labels: Object.fromEntries(SCOPE_KIND.map((x) => [x, cap(x)])), width: '110px' }], ['name', 'Name', 'text', { width: '26%' }],
+          ['status', 'Status', 'select', { list: SCOPE_STATUS, labels: Object.fromEntries(SCOPE_STATUS.map((x) => [x, cap(x)])), width: '130px' }], ['note', 'Note', 'area']])}</div>`;
+    },
+    evidence() {
+      return `<div class="section"><h1>Evidence</h1><p class="lead">Every file, image and log you examined, with its hash, so anyone can check they have the same one. Hexes sends the file it has open straight here.</p>
+        <form class="card" data-add="evidence"><div class="addrow">
+          <input class="field grow" name="name" placeholder="Item, e.g. WKS-01 memory image" required>
+          <input class="field grow mono" name="sha256" placeholder="SHA-256">
+          <input class="field w-md" name="source" placeholder="Collected from">
+          <input class="field w-time mono" name="collected" placeholder="Collected (UTC)">
+          <button class="btn primary" type="submit">Add</button></div></form>
+        ${itemTable('evidence', [['name', 'Item', 'text', { width: '22%' }], ['sha256', 'SHA-256', 'mono', { width: '30%' }], ['size', 'Bytes', 'mono', { width: '90px' }], ['source', 'Collected from', 'text'], ['collected', 'Collected (UTC)', 'time', { width: '170px' }], ['note', 'Note', 'text']])}</div>`;
+    },
+    actions() {
+      return `<div class="section"><h1>Actions &amp; decisions</h1><p class="lead">Who decided or did what, and when. This is the record you will be asked for afterwards. Each item has its own notes: objections, follow-ups, and anything that changed.</p>
+        <form class="card" data-add="actions"><div class="addrow">
+          <input class="field w-time mono" name="time" placeholder="When (UTC); empty for now">
+          <select class="field w-sm" name="kind" aria-label="Kind">${opt(ACTION_KIND, 'action', Object.fromEntries(ACTION_KIND.map((x) => [x, cap(x)])))}</select>
+          <input class="field grow" name="text" placeholder="e.g. Isolated WKS-01 from the network" required>
+          <input class="field w-sm" name="who" placeholder="Who">
+          <button class="btn primary" type="submit">Add</button></div></form>
+        ${itemTable('actions', [['time', 'When (UTC)', 'time', { width: '170px' }], ['kind', 'Kind', 'select', { list: ACTION_KIND, labels: Object.fromEntries(ACTION_KIND.map((x) => [x, cap(x)])), width: '110px' }], ['text', 'What', 'area'], ['who', 'Who', 'text', { width: '130px' }]], { thread: true })}</div>`;
+    },
+    report() {
+      return `<div class="section"><div class="toolbar no-print"><span class="grow muted">The report is built from the case as it stands. Export it as Markdown, or print it (or save it as a PDF).</span>
+          <button class="btn" type="button" data-export="report-md">Download Markdown</button><button class="btn primary" type="button" data-export="report-print">Print or save as PDF</button></div>
+        <article class="report">${reportHtml()}</article></div>`;
+    },
+  };
+
+  function render() {
+    $('caseTitle').value = S.c.title;
+    document.title = `${S.c.title} · Tessera`;
+    renderNav();
+    $('main').innerHTML = VIEWS[S.section]();
+    $('main').scrollTop = 0;
+    renderCasesMenu();
+  }
+  function go(sec) { if (VIEWS[sec]) { S.section = sec; render(); } }
+  function rerender() { const y = $('main').scrollTop; render(); $('main').scrollTop = y; }
+
+  /* ======================= Editing ======================= */
+  // Items as they are added, with sensible defaults and normalized values
+  function makeItem(list, f) {
+    const it = { id: rid(), ...f };
+    if (list === 'indicators') {
+      it.value = refang(String(it.value || '').trim());
+      it.type = it.type || classify(it.value);
+      if (['sha256', 'sha1', 'md5'].includes(it.type)) it.value = it.value.toLowerCase();
+    }
+    if (list === 'actions' && !String(it.time || '').trim()) it.time = nowIso();
+    ['time', 'collected'].forEach((k) => { if (it[k]) it[k] = normTime(it[k]); });
+    if (list === 'evidence' && it.sha256) it.sha256 = String(it.sha256).trim().toLowerCase();
+    return it;
+  }
+  const dupKey = {
+    indicators: (x) => x.type + '|' + String(x.value).toLowerCase(),
+    events: (x) => normTime(x.time) + '|' + x.text,
+    evidence: (x) => (x.sha256 || '').toLowerCase() || 'name|' + x.name,
+    scope: (x) => x.kind + '|' + String(x.name).toLowerCase(),
+    findings: (x) => x.title, actions: (x) => normTime(x.time) + '|' + x.text,
+  };
+  // Add items, skipping ones the case already has. Returns how many were new.
+  function addItems(list, items) {
+    const have = new Set(S.c[list].map(dupKey[list]));
+    let n = 0;
+    for (const f of items) {
+      const it = makeItem(list, f), k = dupKey[list](it);
+      if (have.has(k)) continue;
+      have.add(k); S.c[list].push(it); n++;
+    }
+    if (list === 'events') sortEvents();
+    if (n) changed();
+    return n;
+  }
+
+  // Post a note into an item's thread
+  function postNote(form) {
+    const it = S.c.actions.find((x) => x.id === form.dataset.noteFor);
+    const text = form.elements.text.value.trim(), who = form.elements.who.value.trim();
+    if (!it || !text) return;
+    store.set('tessera.who', who);
+    (it.notes = it.notes || []).push({ id: rid(), time: nowIso(), who, text });
+    changed(); rerender();
+    const t = $('main').querySelector(`form[data-note-for="${CSS.escape(it.id)}"] textarea`); if (t) t.focus();
+  }
+  $('main').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.closest('form[data-note-for]')) { e.preventDefault(); postNote(e.target.closest('form')); }
+  });
+  document.addEventListener('submit', (e) => {
+    const nf = e.target.closest('form[data-note-for]');
+    if (nf) { e.preventDefault(); postNote(nf); return; }
+    const form = e.target.closest('form[data-add]');
+    if (!form) return;
+    e.preventDefault();
+    const list = form.dataset.add, f = Object.fromEntries(new FormData(form).entries());
+    Object.keys(f).forEach((k) => (f[k] = String(f[k]).trim()));
+    if ((list === 'events' || list === 'findings') && f.time && !parseTime(f.time)) { toast('That time could not be read. Use YYYY-MM-DD HH:MM:SS, in UTC.', true); return; }
+    const n = addItems(list, [f]);
+    if (!n) { toast('The case already has that'); return; }
+    render();
+    const first = $('main').querySelector(`form[data-add="${list}"] .field`);
+    if (first) first.focus();
+  });
+  $('main').addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.case) {
+      S.c[t.dataset.case] = t.dataset.case === 'opened' ? normTime(t.value) : t.value;
+      changed(); return;
+    }
+    const row = t.closest('tr[data-id]'), table = t.closest('table[data-list]');
+    if (!row || !table || !t.dataset.k) return;
+    const it = S.c[table.dataset.list].find((x) => x.id === row.dataset.id);
+    if (!it) return;
+    const k = t.dataset.k;
+    if (k === 'time' || k === 'collected') {
+      it[k] = normTime(t.value);
+      t.classList.toggle('bad', !!t.value && !parseTime(t.value));
+      if (table.dataset.list === 'events') { changed(); render(); return; }
+    } else it[k] = t.value;
+    changed();
+  });
+  $('main').addEventListener('click', (e) => {
+    const sec = e.target.closest('[data-sec]');
+    if (sec) { go(sec.dataset.sec); return; }
+    const th = e.target.closest('[data-thread]');
+    if (th) {
+      const id = th.closest('tr[data-id]').dataset.id;
+      if (S.open.has(id)) S.open.delete(id); else S.open.add(id);
+      rerender();
+      if (S.open.has(id)) { const t = $('main').querySelector(`form[data-note-for="${CSS.escape(id)}"] textarea`); if (t) t.focus(); }
+      return;
+    }
+    const nd = e.target.closest('[data-note-del]');
+    if (nd) {
+      const it = S.c.actions.find((x) => x.id === nd.closest('tr.thread-row').dataset.for), nid = nd.closest('[data-note]').dataset.note;
+      if (it) { it.notes = it.notes.filter((n) => n.id !== nid); changed(); rerender(); }
+      return;
+    }
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      const row = del.closest('tr[data-id]'), list = del.closest('table[data-list]').dataset.list;
+      S.c[list] = S.c[list].filter((x) => x.id !== row.dataset.id);
+      changed(); render(); return;
+    }
+    if (e.target.id === 'iocExtract') {
+      const found = extractIocs($('iocPaste').value), note = $('iocNote').value.trim();
+      if (!found.length) { toast('No indicators found in that text'); return; }
+      const n = addItems('indicators', found.map((x) => ({ ...x, note, source: 'pasted' })));
+      toast(`Found ${found.length} indicator${found.length === 1 ? '' : 's'}; ${n} new`);
+      render(); return;
+    }
+    const ex = e.target.closest('[data-export]');
+    if (ex) doExport(ex.dataset.export);
+  });
+  $('nav').addEventListener('click', (e) => { const b = e.target.closest('[data-sec]'); if (b) go(b.dataset.sec); });
+  $('caseTitle').addEventListener('input', () => { S.c.title = $('caseTitle').value || 'Untitled case'; document.title = `${S.c.title} · Tessera`; changed(); });
+
+  /* ======================= Report ======================= */
+  const notesSorted = (it) => [...(it.notes || [])].sort((a, b) => (parseTime(a.time) || 0) - (parseTime(b.time) || 0));
+  const tactic = (f) => f.tactic ? ` · ${f.tactic}` : '';
+  function reportHtml() {
+    const c = S.c, ev = [...c.events].sort((a, b) => (parseTime(a.time) || 0) - (parseTime(b.time) || 0));
+    const table = (heads, rows) => rows.length ? `<table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((x) => `<td>${x}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p><em>None recorded.</em></p>';
+    const code = (s) => s ? `<code>${esc(s)}</code>` : '';
+    return `<h1>${esc(c.title)}</h1>
+      <p class="rmeta">${esc(cap(c.status))} · ${esc(cap(c.severity))} severity${c.lead ? ' · Lead: ' + esc(c.lead) : ''} · Opened ${esc(fmtTime(c.opened))} · Updated ${esc(fmtTime(c.updated))}</p>
+      <h2>Summary</h2>${c.summary ? c.summary.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('') : '<p><em>No summary yet.</em></p>'}
+      <h2>Scope</h2>${table(['Kind', 'Name', 'Status', 'Note'], SCOPE_STATUS.flatMap((st) => c.scope.filter((x) => x.status === st)).map((x) => [esc(cap(x.kind)), esc(x.name), esc(cap(x.status)), esc(x.note)]))}
+      <h2>Timeline (UTC)</h2>${table(['Time', 'Host', 'Event', 'Source'], ev.map((e) => [`<span style="white-space:nowrap">${esc(fmtTime(e.time))}</span>`, esc(e.host), esc(e.text), esc(e.source)]))}
+      <h2>Findings</h2>${c.findings.length ? CONFIDENCE.flatMap((cf) => c.findings.filter((f) => f.confidence === cf)).map((f) => `<h3>${esc(f.title)}</h3><p class="rmeta">${esc(cap(f.confidence))}${esc(tactic(f))}${f.time ? ' · ' + esc(fmtTime(f.time)) : ''}</p>${f.detail ? `<p>${esc(f.detail).replace(/\n/g, '<br>')}</p>` : ''}`).join('') : '<p><em>None recorded.</em></p>'}
+      <h2>Indicators</h2>${table(['Type', 'Indicator (defanged)', 'Note'], c.indicators.map((x) => [esc(IOC_LABEL[x.type] || x.type), code(defang(x.value, x.type)), esc(x.note)]))}
+      <h2>Evidence</h2>${table(['Item', 'SHA-256', 'Bytes', 'Collected from', 'Collected'], c.evidence.map((x) => [esc(x.name), code(x.sha256), esc(x.size), esc(x.source), esc(fmtTime(x.collected))]))}
+      <h2>Actions and decisions</h2>${table(['When (UTC)', 'Kind', 'What', 'Who'], [...c.actions].sort((a, b) => (parseTime(a.time) || 0) - (parseTime(b.time) || 0)).map((x) => [`<span style="white-space:nowrap">${esc(fmtTime(x.time))}</span>`, esc(cap(x.kind)),
+        esc(x.text) + (x.notes && x.notes.length ? `<ul class="rnotes">${notesSorted(x).map((n) => `<li><span class="rn-meta">${esc(fmtTime(n.time))}${n.who ? ' · ' + esc(n.who) : ''}</span> ${esc(n.text).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : ''), esc(x.who)]))}
+      <p class="foot">Written with Tessera (jon.glass/tessera) on ${esc(fmtTime(nowIso()))}.</p>`;
+  }
+  function reportMarkdown() {
+    const c = S.c, ev = [...c.events].sort((a, b) => (parseTime(a.time) || 0) - (parseTime(b.time) || 0));
+    const md = (s) => String(s == null ? '' : s).replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
+    const table = (heads, rows) => rows.length ? [`| ${heads.join(' | ')} |`, `|${heads.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${r.map(md).join(' | ')} |`)].join('\n') : '_None recorded._';
+    const tick = (s) => s ? '`' + String(s).replace(/`/g, "'") + '`' : '';
+    return [`# ${c.title}`, '',
+      `${cap(c.status)} · ${cap(c.severity)} severity${c.lead ? ' · Lead: ' + c.lead : ''} · Opened ${fmtTime(c.opened)} · Updated ${fmtTime(c.updated)}`, '',
+      '## Summary', '', c.summary || '_No summary yet._', '',
+      '## Scope', '', table(['Kind', 'Name', 'Status', 'Note'], SCOPE_STATUS.flatMap((st) => c.scope.filter((x) => x.status === st)).map((x) => [cap(x.kind), x.name, cap(x.status), x.note])), '',
+      '## Timeline (UTC)', '', table(['Time', 'Host', 'Event', 'Source'], ev.map((e) => [fmtTime(e.time), e.host, e.text, e.source])), '',
+      '## Findings', '', c.findings.length ? CONFIDENCE.flatMap((cf) => c.findings.filter((f) => f.confidence === cf)).map((f) => `### ${f.title}\n\n_${cap(f.confidence)}${tactic(f)}${f.time ? ' · ' + fmtTime(f.time) : ''}_\n\n${f.detail || ''}`.trim()).join('\n\n') : '_None recorded._', '',
+      '## Indicators', '', table(['Type', 'Indicator (defanged)', 'Note'], c.indicators.map((x) => [IOC_LABEL[x.type] || x.type, tick(defang(x.value, x.type)), x.note])), '',
+      '## Evidence', '', table(['Item', 'SHA-256', 'Bytes', 'Collected from', 'Collected'], c.evidence.map((x) => [x.name, tick(x.sha256), x.size, x.source, fmtTime(x.collected)])), '',
+      '## Actions and decisions', '', table(['When (UTC)', 'Kind', 'What', 'Who'], [...c.actions].sort((a, b) => (parseTime(a.time) || 0) - (parseTime(b.time) || 0)).map((x) => [fmtTime(x.time), cap(x.kind),
+        x.text + (x.notes && x.notes.length ? '\n' + notesSorted(x).map((n) => `↳ ${fmtTime(n.time)}${n.who ? ' · ' + n.who : ''}: ${n.text}`).join('\n') : ''), x.who])), '',
+      `_Written with Tessera (jon.glass/tessera) on ${fmtTime(nowIso())}._`, ''].join('\n');
+  }
+
+  /* ======================= Exports ======================= */
+  const slug = () => (S.c.title || 'case').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'case';
+  // Indicators as a YARA rule: text indicators as strings (ASCII and UTF-16), hashes through the hash module
+  function yaraRule() {
+    const q = (s) => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    const textTypes = ['ip', 'domain', 'url', 'email', 'file', 'path', 'registry', 'pipe', 'mutex'];
+    const strs = S.c.indicators.filter((x) => textTypes.includes(x.type) && String(x.value).length >= 4);
+    const hashes = S.c.indicators.filter((x) => ['sha256', 'sha1', 'md5'].includes(x.type));
+    if (!strs.length && !hashes.length) return null;
+    const name = 'tessera_' + slug().replace(/-/g, '_');
+    const conds = [];
+    if (strs.length) conds.push('any of them');
+    hashes.forEach((h) => conds.push(`hash.${h.type}(0, filesize) == ${q(h.value)}`));
+    return [hashes.length ? 'import "hash"\n' : '', `rule ${/^[a-z_]/.test(name) ? name : 'tessera_case'}`, '{', '  meta:',
+      `    description = ${q('Indicators from the Tessera case "' + S.c.title + '"')}`, `    date = ${q(nowIso().slice(0, 10))}`,
+      ...(strs.length ? ['  strings:', ...strs.map((x, i) => `    $s${i + 1} = ${q(x.value)} ascii wide nocase  // ${IOC_LABEL[x.type]}`)] : []),
+      '  condition:', '    ' + conds.join(' or\n    '), '}', ''].filter((l) => l !== '').join('\n') + '\n';
+  }
+  function showText(title, note, text, file) {
+    $('modalCard').innerHTML = `<h3 id="modalTitle">${esc(title)}</h3><p class="muted">${esc(note)}</p><pre>${esc(text)}</pre>
+      <div class="row-end"><button class="btn" type="button" data-m="copy">Copy</button><button class="btn" type="button" data-m="dl">Download</button><button class="btn primary" type="button" data-m="close">Close</button></div>`;
+    $('modal').hidden = false;
+    $('modalCard').onclick = (e) => {
+      const m = e.target.dataset.m;
+      if (m === 'copy') navigator.clipboard.writeText(text).then(() => toast('Copied'), () => toast('Clipboard is unavailable here', true));
+      if (m === 'dl') download(file, text);
+      if (m === 'close') $('modal').hidden = true;
+    };
+  }
+  function doExport(kind) {
+    closeMenus();
+    const c = S.c;
+    if (kind === 'case') { download(slug() + '.tessera.json', JSON.stringify(c, null, 2), 'application/json'); toast('Case file downloaded'); }
+    else if (kind === 'report-md') download(slug() + '-report.md', reportMarkdown(), 'text/markdown');
+    else if (kind === 'report-print') { go('report'); setTimeout(() => window.print(), 50); }
+    else if (kind === 'ioc-csv') {
+      if (!c.indicators.length) return toast('No indicators yet');
+      download(slug() + '-indicators.csv', toCSV(['type', 'value', 'note', 'source'], c.indicators), 'text/csv');
+    } else if (kind === 'ioc-defanged') {
+      if (!c.indicators.length) return toast('No indicators yet');
+      showText('Indicators, defanged', 'Safe to paste into email and chat: links will not be clickable.',
+        IOC_TYPES.flatMap((t) => c.indicators.filter((x) => x.type === t).map((x) => `${IOC_LABEL[t]}\t${defang(x.value, t)}`)).join('\n'), slug() + '-indicators.txt');
+    } else if (kind === 'ioc-yara') {
+      const r = yaraRule();
+      if (!r) return toast('Add some indicators first');
+      showText('YARA rule', 'Strings match ASCII or UTF-16, any case. Test it in Hexes (YARA tab) before you rely on it.', r, slug() + '.yar');
+    } else if (kind === 'recap') {
+      const ev = c.events.filter((e) => parseTime(e.time));
+      if (!ev.length) return toast('No timeline events with a readable time yet');
+      if (!window.Suite) return toast('This copy of Tessera cannot hand off to Recap. Download the case file instead.', true);
+      const csv = toCSV(['timestamp', 'event', 'host', 'source'], ev.map((e) => ({ timestamp: normTime(e.time), event: e.text, host: e.host, source: e.source })));
+      const w = window.open('', '_blank');
+      Suite.send('tessera', 'recap', { kind: 'events', name: slug(), data: csv, meta: { timeCols: ['timestamp'], tz: 0 } })
+        .then((url) => { if (w) { w.opener = null; w.location.href = url; } else location.href = url; }, (e) => { if (w) w.close(); toast(e.message, true); });
+    }
+  }
+
+  /* ======================= Menus and cases ======================= */
+  function closeMenus() { document.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')); }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-menu]');
+    if (b) { const m = b.parentElement, was = m.classList.contains('open'); closeMenus(); if (!was) m.classList.add('open'); return; }
+    if (!e.target.closest('.menu-list')) closeMenus();
+  });
+  document.querySelectorAll('#exportMenu [data-export]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); doExport(b.dataset.export); }));
+  function renderCasesMenu() {
+    const idx = caseIndex();
+    $('casesList').innerHTML = '<div class="menu-label">Cases in this browser</div>' +
+      idx.map((x) => `<button type="button" data-open="${esc(x.id)}" class="${S.c && x.id === S.c.id ? 'on' : ''}">${esc(x.title)} <span class="muted small">· ${esc(cap(x.status || ''))}</span></button>`).join('') +
+      '<div class="menu-sep"></div><button type="button" data-case-act="new">New case</button><button type="button" data-case-act="import">Open a case file…</button>' +
+      '<button type="button" data-case-act="delete" class="btn danger" style="border:0">Delete this case</button>';
+  }
+  $('casesList').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const o = e.target.closest('[data-open]'), a = e.target.closest('[data-case-act]');
+    if (o) { saveNow(); openCase(o.dataset.open); closeMenus(); return; }
+    if (!a) return;
+    closeMenus();
+    if (a.dataset.caseAct === 'new') { saveNow(); createCase(); S.section = 'overview'; render(); $('caseTitle').focus(); $('caseTitle').select(); }
+    if (a.dataset.caseAct === 'import') $('importFile').click();
+    if (a.dataset.caseAct === 'delete') deleteCase();
+  });
+  $('importFile').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try { saveNow(); importCase(JSON.parse(await f.text())); } catch (err) { toast('Could not open ' + f.name + ': ' + err.message, true); }
+  });
+  $('themeBtn').addEventListener('click', () => {
+    const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t; store.set('tessera.theme', t);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { $('modal').hidden = true; closeMenus(); }
+  });
+  $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) $('modal').hidden = true; });
+
+  /* ======================= Hand-offs in ======================= */
+  // Other tools send into the open case: kind "case" carries items ({events, indicators, evidence, findings, scope, actions}),
+  // kind "events" a timeline CSV (Recap's tagged events, Hexes' bookmarks), kind "table" a CSV with an ioc/indicator column or a time column.
+  const TIME_COLS = ['time_utc', 'timestamp', 'time', 'TimeCreated', 'datetime', 'date'];
+  function eventsFromRows(rows, source) {
+    if (!rows.length) return [];
+    const cols = Object.keys(rows[0]);
+    const tc = TIME_COLS.find((c) => cols.includes(c)) || cols.find((c) => rows.some((r) => parseTime(r[c])));
+    const txt = ['event', 'label', 'text', 'message', 'description'].find((c) => cols.includes(c)) || cols.find((c) => c !== tc);
+    const host = ['host', 'Computer', 'computer', 'hostname', 'source_name'].find((c) => cols.includes(c));
+    return rows.filter((r) => parseTime(r[tc])).map((r) => ({ time: r[tc], text: r[txt] || '', host: host ? r[host] : '', source: r.source || source }));
+  }
+  async function receiveHandoff(from) {
+    let h;
+    try { h = await Suite.receive('tessera', from); } catch (e) { toast('Could not load the hand-off: ' + e.message, true); return; }
+    if (!h) return;
+    const tally = [];
+    let show = null, most = 0; // open the section that gained the most
+    const add = (list, items, label) => {
+      if (!items.length) return;
+      const n = addItems(list, items);
+      tally.push(`${n} ${label}${n === 1 ? '' : 's'}`);
+      if (n > most) { most = n; show = list; }
+    };
+    if (h.kind === 'case') {
+      let o; try { o = JSON.parse(h.text()); } catch (e) { toast('The hand-off is damaged', true); return; }
+      if (o.title && S.c.title === 'Untitled case') S.c.title = String(o.title);
+      add('evidence', o.evidence || [], 'evidence item');
+      add('events', (o.events || []).map((x) => ({ ...x, source: x.source || h.fromName })), 'event');
+      add('indicators', (o.indicators || []).map((x) => ({ ...x, source: x.source || h.fromName })), 'indicator');
+      add('findings', o.findings || [], 'finding');
+      add('scope', o.scope || [], 'scope item');
+      add('actions', o.actions || [], 'action');
+    } else {
+      const rows = parseCSV(h.text()), cols = rows.length ? Object.keys(rows[0]) : [];
+      const iocCol = ['ioc', 'indicator', 'value'].find((c) => cols.includes(c));
+      if (h.kind === 'table' && iocCol) add('indicators', rows.map((r) => ({ value: r[iocCol], type: IOC_TYPES.includes(r.type) ? r.type : '', note: r.note || '', source: h.fromName })), 'indicator');
+      else add('events', eventsFromRows(rows, h.fromName), 'event');
+    }
+    saveNow();
+    if (show) S.section = show;
+    render();
+    toast(tally.length ? `From ${h.fromName}: ${tally.join(', ')} added to "${S.c.title}"` : `Nothing new from ${h.fromName}`);
+  }
+
+  /* ======================= Boot ======================= */
+  async function boot() {
+    const params = new URLSearchParams(location.search);
+    const theme = store.get('tessera.theme', null) || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.dataset.theme = theme;
+    const active = store.get(ACTIVE, null);
+    if (!(active && openCase(active))) { const first = caseIndex()[0]; if (!(first && openCase(first.id))) createCase(); }
+    // ?src=<case file url>: a starter case, e.g. from jon.glass/cases
+    const src = params.get('src');
+    if (src) {
+      try {
+        const u = new URL(src, location.href);
+        if (!/^https?:$/.test(u.protocol)) throw new Error('only http(s) links');
+        const res = await fetch(u.href);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        importCase(await res.json());
+      } catch (e) { toast('Could not open the case file: ' + e.message, true); }
+    }
+    const from = params.get('from');
+    if (from && window.Suite) await receiveHandoff(from);
+    if (src || from) history.replaceState(null, '', location.pathname);
+    saveNow();
+  }
+  boot();
+})();
+  </script>
+</body>
+</html>
