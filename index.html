@@ -185,6 +185,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
   .report { box-shadow: none; padding: 0; max-width: none; }
 }
   </style>
+<meta name="author" content="Jon Glass">
 </head>
 <body>
   <header id="topbar">
@@ -438,7 +439,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
     $('nav').innerHTML = SECTIONS.map(([id, name]) =>
       `<button type="button" data-sec="${id}" class="${S.section === id ? 'on' : ''}"${S.section === id ? ' aria-current="page"' : ''}>${name}` +
       `${LISTS.includes(id) ? `<span class="count">${S.c[id].length}</span>` : ''}</button>`).join('') +
-      '<div class="nav-foot">Everything stays in this browser. Export the case file to keep or share it.</div>';
+      '<div class="nav-foot">Everything stays in this browser. Export the case file to keep or share it.<br><br>&copy; 2026 <a href="https://jon.glass/" style="color:inherit">Jon Glass</a> &middot; <a href="https://github.com/glassdfir/tessera/blob/main/LICENSE" style="color:inherit">MIT License</a> &middot; <a href="https://github.com/glassdfir/tessera" style="color:inherit">Source</a></div>';
   }
   const opt = (list, v, labels) => list.map((x) => `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(labels ? labels[x] || x : x || '—')}</option>`).join('');
   const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
