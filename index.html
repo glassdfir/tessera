@@ -96,7 +96,7 @@ table.items tr:hover td { background: var(--row-hover); }
 table.items .cell { width: 100%; background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 4px 6px; min-width: 0; }
 table.items .cell:hover { border-color: var(--line); }
 table.items .cell:focus { outline: none; border-color: var(--accent); background: var(--panel-2); }
-table.items textarea.cell { resize: vertical; min-height: 30px; line-height: 1.4; display: block; }
+table.items textarea.cell { resize: none; min-height: 30px; line-height: 1.4; display: block; overflow: hidden; }
 table.items select.cell { padding: 3px 4px; }
 table.items .del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 6px 6px; }
 table.items .del:hover { color: var(--danger); }
@@ -579,8 +579,12 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
     renderNav();
     $('main').innerHTML = VIEWS[S.section]();
     $('main').scrollTop = 0;
+    fitCells();
     renderCasesMenu();
   }
+  // Table cells grow to show all their text instead of a fixed one-line box.
+  function fitCell(t) { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`; }
+  function fitCells() { $('main').querySelectorAll('table.items textarea.cell').forEach(fitCell); }
   function go(sec) { if (VIEWS[sec]) { S.section = sec; render(); } }
   function rerender() { const y = $('main').scrollTop; render(); $('main').scrollTop = y; }
 
@@ -647,6 +651,9 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
     const first = $('main').querySelector(`form[data-add="${list}"] .field`);
     if (first) first.focus();
   });
+  $('main').addEventListener('input', (e) => { if (e.target.matches('table.items textarea.cell')) fitCell(e.target); });
+  let fitQueued = false;
+  window.addEventListener('resize', () => { if (!fitQueued) { fitQueued = true; requestAnimationFrame(() => { fitQueued = false; fitCells(); }); } });
   $('main').addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset.case) {
