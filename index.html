@@ -71,6 +71,7 @@ a { color: var(--accent); }
 #nav .nav-foot { margin-top: 14px; padding: 8px 10px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); }
 #main { overflow: auto; padding: 18px 22px 40px; }
 .section { max-width: 1100px; }
+.section.wide { max-width: none; }
 .section h1 { font-size: 18px; margin: 0 0 4px; }
 .section > p.lead { margin: 0 0 14px; color: var(--muted); max-width: 70ch; }
 
@@ -497,7 +498,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
       </div>`;
     },
     findings() {
-      return `<div class="section"><h1>Findings</h1><p class="lead">What you have established, and how sure you are. One finding per fact; say what evidence shows it.</p>
+      return `<div class="section wide"><h1>Findings</h1><p class="lead">What you have established, and how sure you are. One finding per fact; say what evidence shows it.</p>
         <form class="card" data-add="findings"><div class="addrow">
           <input class="field grow" name="title" placeholder="Finding, e.g. LSASS was dumped on WKS-01" required>
           <select class="field w-md" name="tactic" aria-label="ATT&CK tactic">${opt(TACTICS, '', { '': 'Tactic (optional)' })}</select>
@@ -511,7 +512,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
     },
     events() {
       sortEvents();
-      return `<div class="section"><h1>Timeline</h1><p class="lead">The key events, in UTC. Keep the full timeline in Recap; keep the moments that tell the story here. Recap's tagged events and Hexes' bookmarks can be sent straight here.</p>
+      return `<div class="section wide"><h1>Timeline</h1><p class="lead">The key events, in UTC. Keep the full timeline in Recap; keep the moments that tell the story here. Recap's tagged events and Hexes' bookmarks can be sent straight here.</p>
         <form class="card" data-add="events"><div class="addrow">
           <input class="field w-time mono" name="time" placeholder="YYYY-MM-DD HH:MM:SSZ" required>
           <input class="field grow" name="text" placeholder="What happened" required>
@@ -523,7 +524,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
         ${itemTable('events', [['time', 'Time (UTC)', 'time', { width: '190px' }], ['text', 'Event', 'area'], ['host', 'Host', 'text', { width: '130px' }], ['source', 'Source', 'text', { width: '130px' }]])}</div>`;
     },
     indicators() {
-      return `<div class="section"><h1>Indicators</h1><p class="lead">Addresses, domains, hashes, file names and other things to hunt for. Paste any text and Tessera pulls the indicators out; defanged ones (hxxp, [.]) are read back.</p>
+      return `<div class="section wide"><h1>Indicators</h1><p class="lead">Addresses, domains, hashes, file names and other things to hunt for. Paste any text and Tessera pulls the indicators out; defanged ones (hxxp, [.]) are read back.</p>
         <div class="card"><h2>Paste to extract</h2>
           <textarea class="field" id="iocPaste" rows="4" placeholder="Paste an alert, a report, log lines…"></textarea>
           <div class="row-end"><input class="field grow" id="iocNote" placeholder="Note for all of them, e.g. from the EDR alert"><button class="btn primary" type="button" id="iocExtract">Extract indicators</button></div></div>
@@ -535,7 +536,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
         ${itemTable('indicators', [['type', 'Type', 'select', { list: IOC_TYPES, labels: IOC_LABEL, width: '140px' }], ['value', 'Indicator', 'mono', { width: '38%' }], ['note', 'Note', 'text'], ['source', 'Source', 'text', { width: '120px' }]])}</div>`;
     },
     scope() {
-      return `<div class="section"><h1>Scope</h1><p class="lead">Every host, account and dataset the incident touches, and where each one stands.</p>
+      return `<div class="section wide"><h1>Scope</h1><p class="lead">Every host, account and dataset the incident touches, and where each one stands.</p>
         <form class="card" data-add="scope"><div class="addrow">
           <select class="field w-sm" name="kind" aria-label="Kind">${opt(SCOPE_KIND, 'host', Object.fromEntries(SCOPE_KIND.map((x) => [x, cap(x)])))}</select>
           <input class="field grow" name="name" placeholder="Name, e.g. FILE-01 or CORP\\svc_backup" required>
@@ -546,7 +547,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
           ['status', 'Status', 'select', { list: SCOPE_STATUS, labels: Object.fromEntries(SCOPE_STATUS.map((x) => [x, cap(x)])), width: '130px' }], ['note', 'Note', 'area']])}</div>`;
     },
     evidence() {
-      return `<div class="section"><h1>Evidence</h1><p class="lead">Every file, image and log you examined, with its hash, so anyone can check they have the same one. Hexes sends the file it has open straight here.</p>
+      return `<div class="section wide"><h1>Evidence</h1><p class="lead">Every file, image and log you examined, with its hash, so anyone can check they have the same one. Hexes sends the file it has open straight here.</p>
         <form class="card" data-add="evidence"><div class="addrow">
           <input class="field grow" name="name" placeholder="Item, e.g. WKS-01 memory image" required>
           <input class="field grow mono" name="sha256" placeholder="SHA-256">
@@ -556,7 +557,7 @@ table.items tr.thread-row:hover td { background: var(--panel-2); }
         ${itemTable('evidence', [['name', 'Item', 'text', { width: '22%' }], ['sha256', 'SHA-256', 'mono', { width: '30%' }], ['size', 'Bytes', 'mono', { width: '90px' }], ['source', 'Collected from', 'text'], ['collected', 'Collected (UTC)', 'time', { width: '170px' }], ['note', 'Note', 'text']])}</div>`;
     },
     actions() {
-      return `<div class="section"><h1>Actions &amp; decisions</h1><p class="lead">Who decided or did what, and when. This is the record you will be asked for afterwards. Each item has its own notes: objections, follow-ups, and anything that changed.</p>
+      return `<div class="section wide"><h1>Actions &amp; decisions</h1><p class="lead">Who decided or did what, and when. This is the record you will be asked for afterwards. Each item has its own notes: objections, follow-ups, and anything that changed.</p>
         <form class="card" data-add="actions"><div class="addrow">
           <input class="field w-time mono" name="time" placeholder="When (UTC); empty for now">
           <select class="field w-sm" name="kind" aria-label="Kind">${opt(ACTION_KIND, 'action', Object.fromEntries(ACTION_KIND.map((x) => [x, cap(x)])))}</select>
